@@ -1,105 +1,204 @@
-import {tiny, defs} from './assignment-3-resources.js';
-                                                                // Pull these names into this module's scope for convenience:
+import { tiny, defs } from './assignment-3-resources.js';
 const { Vec, Mat, Mat4, Color, Shape, Shader,
-         Scene, Canvas_Widget, Code_Widget, Text_Widget } = tiny;
+    Scene, Canvas_Widget, Code_Widget, Text_Widget } = tiny;
 const { Cube, Subdivision_Sphere, Transforms_Sandbox_Base } = defs;
 
-    // Now we have loaded everything in the files tiny-graphics.js, tiny-graphics-widgets.js, and assignment-3-resources.js.
-    // This yielded "tiny", an object wrapping the stuff in the first two files, and "defs" for wrapping all the rest.
-
-// (Can define Main_Scene's class here)
-
 const Main_Scene = defs.Transforms_Sandbox =
-class Transforms_Sandbox extends Transforms_Sandbox_Base
-{                                                    // **Transforms_Sandbox** is a Scene object that can be added to any display canvas.
-                                                     // This particular scene is broken up into two pieces for easier understanding.
-                                                     // See the other piece, Transforms_Sandbox_Base, if you need to see the setup code.
-                                                     // The piece here exposes only the display() method, which actually places and draws 
-                                                     // the shapes.  We isolate that code so it can be experimented with on its own.
-                                                     // This gives you a very small code sandbox for editing a simple scene, and for
-                                                     // experimenting with matrix transformations.
-  display( context, program_state )
-    {                                                // display():  Called once per frame of animation.  For each shape that you want to
-                                                     // appear onscreen, place a .draw() call for it inside.  Each time, pass in a
-                                                     // different matrix value to control where the shape appears.
+    class Transforms_Sandbox extends Transforms_Sandbox_Base {
+        constructor() {
+            super();
+            this.numDragonFlies = 25;
+            this.boids = [];
+            let i;
+            for (i = 0; i < this.numDragonFlies; i++) {
+                this.boids.push(new Boid())
+            }
+        }
+        display(context, program_state) {
+            super.display(context, program_state);
+            const t = this.t = program_state.animation_time / 1000;
+            const p = this.p = (1 - Math.cos(program_state.animation_time * Math.PI / 500)) / 2;
+            let model_transform = Mat4.identity();
+            if (this.swarm) {
+                program_state.set_camera(Mat4.translation([0, 0, -10]));
+                let i;
+                for (i = 0; i < this.numDragonFlies; i++) {
+                    model_transform = Mat4.identity().times(Mat4.scale([0.05, 0.05, 0.05]))
+                        .times(Mat4.translation(this.boids[i].position))
+                        .times(Mat4.inverse(Mat4.look_at(this.boids[i].velocity, Vec.of(0, 0, 0), Vec.of(0, 1, 0))));
+                    this.draw_dragonfly(context, program_state, model_transform);
+                }
+                for (i = 0; i < this.numDragonFlies; i++) {
+                    this.boids[i].run(this.boids, program_state.animation_delta_time / 100);
+                }
+            } else if (this.hover) {
+                this.draw_dragonfly(context, program_state, model_transform);
+            } else {
+                model_transform = model_transform.times(Mat4.rotation(t, [0, 1, 0]))
+                    .times(Mat4.scale([0.1, 0.1, 0.1]))
+                    .times(Mat4.translation([-40, 10 * p, 5]));
+                this.draw_dragonfly(context, program_state, model_transform);
+            }
+        }
+        draw_dragonfly(context, program_state, model_transform) {
+            const blue = Color.of(0, 0, 1, 1), yellow = Color.of(1, 1, 0, 1), orange = Color.of(1, 140 / 255, 0, 1), glass = Color.of(0.5, 0.5, 1, 0.3);
+            const p = this.p;
+            this.shapes.ball.draw(context, program_state, model_transform.times(Mat4.translation([1.5, 0, 0])), this.materials.metal.override(blue));
+            this.shapes.ball.draw(context, program_state, model_transform.times(Mat4.translation([-1.5, 0, 0])), this.materials.metal.override(blue));
+            model_transform = model_transform.times(Mat4.scale([0.5, 0.5, 0.5]));
+            this.shapes.box.draw(context, program_state, model_transform, this.materials.plastic.override(yellow));
+            let i;
+            for (i = 0; i < 10; i++) {
+                model_transform = model_transform.times(Mat4.translation([0, -1, -1]))
+                    .times(Mat4.rotation(0.2 * p, [-1, 0, 0]))
+                    .times(Mat4.translation([0, 1, -1]));
+                this.shapes.box.draw(context, program_state, model_transform, this.materials.plastic.override(orange));
+                if (i == 1 || i == 2) {
+                    let leftWing = model_transform.times(Mat4.translation([-1, 1, 0]))
+                        .times(Mat4.rotation(p - 0.5, [0, 0, 1]))
+                        .times(Mat4.scale([10, 1 / 4, 1]))
+                        .times(Mat4.translation([-1, 1, 0]));
+                    this.shapes.box.draw(context, program_state, leftWing, this.materials.plastic.override(glass));
+                    let rightWing = model_transform.times(Mat4.translation([1, 1, 0]))
+                        .times(Mat4.rotation(p - 0.5, [0, 0, -1]))
+                        .times(Mat4.scale([10, 1 / 4, 1]))
+                        .times(Mat4.translation([1, 1, 0]));
+                    this.shapes.box.draw(context, program_state, rightWing, this.materials.plastic.override(glass));
+                }
+                if (1 <= i && i <= 3) {
+                    let leftLeg = model_transform.times(Mat4.translation([-1, -1, 0]))
+                        .times(Mat4.rotation(p / 6, [0, 0, -1]))
+                        .times(Mat4.scale([1 / 3, 2, 1 / 3]))
+                        .times(Mat4.translation([-1, -1, 0]));
+                    this.shapes.box.draw(context, program_state, leftLeg, this.materials.plastic.override(yellow));
+                    leftLeg = leftLeg.times(Mat4.translation([1, -1, 0]))
+                        .times(Mat4.scale([3, 1 / 2, 3]))
+                        .times(Mat4.rotation(p / 6, [0, 0, 1]))
+                        .times(Mat4.scale([1 / 3, 2, 1 / 3]))
+                        .times(Mat4.translation([-1, -1, 0]));
+                    this.shapes.box.draw(context, program_state, leftLeg, this.materials.plastic.override(yellow));
+                    let rightLeg = model_transform.times(Mat4.translation([1, -1, 0]))
+                        .times(Mat4.rotation(p / 6, [0, 0, 1]))
+                        .times(Mat4.scale([1 / 3, 2, 1 / 3]))
+                        .times(Mat4.translation([1, -1, 0]));
+                    this.shapes.box.draw(context, program_state, rightLeg, this.materials.plastic.override(yellow));
+                    rightLeg = rightLeg.times(Mat4.translation([-1, -1, 0]))
+                        .times(Mat4.scale([3, 1 / 2, 3]))
+                        .times(Mat4.rotation(p / 6, [0, 0, -1]))
+                        .times(Mat4.scale([1 / 3, 2, 1 / 3]))
+                        .times(Mat4.translation([1, -1, 0]));
+                    this.shapes.box.draw(context, program_state, rightLeg, this.materials.plastic.override(yellow));
+                }
+            }
+        }
+    }
 
-                                                     // Variables that are in scope for you to use:
-                                                     // this.shapes.box:   A vertex array object defining a 2x2x2 cube.
-                                                     // this.shapes.ball:  A vertex array object defining a 2x2x2 spherical surface.
-                                                     // this.materials.metal:    Selects a shader and draws with a shiny surface.
-                                                     // this.materials.plastic:  Selects a shader and draws a more matte surface.
-                                                     // this.lights:  A pre-made collection of Light objects.
-                                                     // this.hover:  A boolean variable that changes when the user presses a button.
-                                                     // program_state:  Information the shader needs for drawing.  Pass to draw().
-                                                     // context:  Wraps the WebGL rendering context shown onscreen.  Pass to draw().                                                       
 
-                                                // Call the setup code that we left inside the base class:
-      super.display( context, program_state );
+class Boid {
+    constructor() {
+        this.acceleration = Vec.of(0, 0, 0);
+        this.velocity = Vec.of(0, 0, 0).randomized(1);
+        this.position = Vec.of(0, 0, 0);
+        this.maxPosition = 80;
+        this.desiredseparation = 20.0;
+        this.neighbordist = 40;
+        this.maxspeed = 3;
+        this.maxforce = 0.05;
+    }
 
-      /**********************************
-      Start coding down here!!!!
-      **********************************/         
-                                                  // From here on down it's just some example shapes drawn for you -- freely 
-                                                  // replace them with your own!  Notice the usage of the Mat4 functions 
-                                                  // translation(), scale(), and rotation() to generate matrices, and the 
-                                                  // function times(), which generates products of matrices.
+    run(boids, delta) {
+        this.velocity = this.velocity.plus(this.separate(boids).times(1.5))
+            .plus(this.align(boids).times(1.0))
+            .plus(this.cohesion(boids).times(1.0));
+        if (this.velocity.norm() > this.maxspeed) {
+            this.velocity = this.velocity.times(this.maxspeed / this.velocity.norm());
+        }
+        this.position = this.position.plus(this.velocity.times(delta));
+        let i;
+        for (i = 0; i < 3; i++) {
+            if (this.position[i] > this.maxPosition) {
+                this.position[i] = -this.maxPosition;
+            }
+            else if (this.position[i] < -this.maxPosition) {
+                this.position[i] = this.maxPosition;
+            }
+        }
+    }
 
-      const blue = Color.of( 0,0,1,1 ), yellow = Color.of( 1,1,0,1 );
+    separate(boids) {
+        let steer = Vec.of(0, 0, 0);
+        let count = 0;
+        for (let i = 0; i < boids.length; i++) {
+            let d = this.position.minus(boids[i].position).norm();
+            if ((d > 0) && (d < this.desiredseparation)) {
+                let diff = this.position.minus(boids[i].position)
+                    .normalized()
+                    .times(1 / d);
+                steer = steer.plus(diff);
+                count++;
+            }
+        }
+        if (count > 0) {
+            steer = steer.times(1 / count);
+        }
+        if (steer.norm() > 0) {
+            steer = steer.normalized()
+                .times(this.maxspeed)
+                .minus(this.velocity);
+            if (steer.norm() > this.maxforce) {
+                steer = steer.times(this.maxforce / steer.norm());
+            }
+        }
+        return steer;
+    }
 
-                                    // Variable model_transform will be a local matrix value that helps us position shapes.
-                                    // It starts over as the identity every single frame - coordinate axes at the origin.
-      let model_transform = Mat4.identity();
-                                                     // Draw a hierarchy of objects that appear connected together.  The first shape
-                                                     // will be the "parent" or "root" of the hierarchy.  The matrices of the 
-                                                     // "child" shapes will use transformations that are calculated as relative
-                                                     // values, based on the parent shape's matrix.  Moving the root node should
-                                                     // therefore move the whole hierarchy.  To perform this, we'll need a temporary
-                                                     // matrix variable that we incrementally adjust (by multiplying in new matrix
-                                                     // terms, in between drawing shapes).  We'll draw the parent shape first and
-                                                     // then incrementally adjust the matrix it used to draw child shapes.
+    align(boids) {
+        let sum = Vec.of(0, 0, 0);
+        let count = 0;
+        for (let i = 0; i < boids.length; i++) {
+            let d = this.position.minus(boids[i].position).norm();
+            if ((d > 0) && (d < this.neighbordist)) {
+                sum = sum.plus(boids[i].velocity);
+                count++;
+            }
+        }
+        if (count > 0) {
+            let steer = sum.times(1 / count)
+                .normalized()
+                .times(this.maxspeed)
+                .minus(this.velocity);
+            if (steer.norm() > this.maxforce) {
+                steer = steer.times(this.maxforce / steer.norm());
+            }
+            return steer;
+        } else {
+            return Vec.of(0, 0, 0);
+        }
+    }
 
-                                                     // Position the root shape.  For this example, we'll use a box 
-                                                     // shape, and place it at the coordinate origin 0,0,0:
-      model_transform = model_transform.times( Mat4.translation([ 0,0,0 ]) );
-                                                                                              // Draw the top box:
-      this.shapes.box.draw( context, program_state, model_transform, this.materials.plastic.override( yellow ) );
-      
-                                                     // Tweak our coordinate system downward 2 units for the next shape.
-      model_transform = model_transform.times( Mat4.translation([ 0, -2, 0 ]) );
-                                                                           // Draw the ball, a child of the hierarchy root.
-                                                                           // The ball will have its own children as well.
-      this.shapes.ball.draw( context, program_state, model_transform, this.materials.metal.override( blue ) );
-                                                                      
-                                                                      // Prepare to draw another box object 2 levels deep 
-                                                                      // within our hierarchy.
-                                                                      // Find how much time has passed in seconds; we can use
-                                                                      // time as an input when calculating new transforms:
-      const t = this.t = program_state.animation_time/1000;
-
-                                                      // Spin our current coordinate frame as a function of time.  Only do
-                                                      // this movement if the button on the page has not been toggled off.
-      if( !this.hover )
-        model_transform = model_transform.times( Mat4.rotation( t, Vec.of( 0,1,0 ) ) )
-
-                                                      // Perform three transforms in a row.
-                                                      // Rotate the coordinate frame counter-clockwise by 1 radian,
-                                                      // Scale it longer on its local Y axis,
-                                                      // and lastly translate down that scaled Y axis by 1.5 units.
-                                                      // That translation is enough for the box and ball volume to miss
-                                                      // one another (new box radius = 2, ball radius = 1, coordinate
-                                                      // frame axis is currently doubled in size).
-      model_transform   = model_transform.times( Mat4.rotation( 1, Vec.of( 0,0,1 ) ) )
-                                         .times( Mat4.scale      ([ 1,   2, 1 ]) )
-                                         .times( Mat4.translation([ 0,-1.5, 0 ]) );
-                                                                                    // Draw the bottom (child) box:
-      this.shapes.box.draw( context, program_state, model_transform, this.materials.plastic.override( yellow ) );
-
-                              // Note that our coordinate system stored in model_transform still has non-uniform scaling
-                              // due to our scale() call.  This could have undesired effects for subsequent transforms;
-                              // rotations will behave like shears.  To avoid this it may have been better to do the
-                              // scale() last and then immediately unscale after the draw.  Or better yet, don't store
-                              // the scaled matrix back in model_transform at all -- but instead in just a temporary
-                              // expression that we pass into draw(), or store under a different name.
+    cohesion(boids) {
+        let sum = Vec.of(0, 0, 0);
+        let count = 0;
+        for (let i = 0; i < boids.length; i++) {
+            let d = this.position.minus(boids[i].position).norm();
+            if ((d > 0) && (d < this.neighbordist)) {
+                sum = sum.plus(boids[i].position);
+                count++;
+            }
+        }
+        if (count > 0) {
+            let steer = sum.times(1 / count)
+                .minus(this.position)
+                .normalized()
+                .times(this.maxspeed)
+                .minus(this.velocity);
+            if (steer.norm() > this.maxforce) {
+                steer = steer.times(this.maxforce / steer.norm());
+            }
+            return steer;
+        } else {
+            return Vec.of(0, 0, 0);
+        }
     }
 }
 
