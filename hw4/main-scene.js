@@ -1,7 +1,7 @@
 import { tiny, defs } from './assignment-4-resources.js';
 const { Vec, Mat, Mat4, Color, Light, Shape, Shader, Material, Texture,
   Scene, Canvas_Widget, Code_Widget, Text_Widget } = tiny;
-const { Cube, Subdivision_Sphere, Transforms_Sandbox_Base } = defs;
+const { Subdivision_Sphere } = defs;
 
 const Main_Scene =
   class Solar_System extends Scene {
@@ -9,7 +9,6 @@ const Main_Scene =
       super();
       const Subdivision_Sphere_Flat = Subdivision_Sphere.prototype.make_flat_shaded_version();
       this.shapes = {
-        'box': new Cube(),
         'ball_1': new Subdivision_Sphere(1),
         'ball_2': new Subdivision_Sphere(2),
         'ball_3': new Subdivision_Sphere_Flat(3),
