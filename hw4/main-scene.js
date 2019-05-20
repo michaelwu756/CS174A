@@ -35,8 +35,8 @@ const Main_Scene =
         planet_4: new Material(texture_shader_2, { texture: new Texture("assets/bricks.png", "NEAREST"), diffusivity: 1, specularity: 1, smoothness: 10 }),
         planet_5: new Material(texture_shader_2, { texture: new Texture("assets/bricks.png"), diffusivity: 1, specularity: 1, smoothness: 10 }),
         star: new Material(texture_shader_2, { texture: new Texture("assets/star_face.png"), ambient: 1, diffusivity: 0, specularity: 0, color: Color.of(0, 0, 0, 1) }),
-        moon_2: new Material(gouraud_shader, { diffusivity: 1, specularity: 0.5, color: Color.of(1, 1, 1, 1) }),
-        black_hole: new Material(black_hole_shader)
+        moon_1: new Material(black_hole_shader),
+        moon_2: new Material(gouraud_shader, { diffusivity: 1, specularity: 0.5, color: Color.of(1, 1, 1, 1) })
       };
 
       this.lights_on = false;
@@ -84,7 +84,10 @@ const Main_Scene =
         .times(Mat4.rotation(4 / 5 * t, [0, 1, 0]));
       this.shapes.ball_2.draw(context, program_state, planet2, this.materials.planet_2.override(modifier));
 
-      // TODO (#6b1):  Draw moon 1 orbiting 2 units away from planet 2, revolving AND rotating.
+      const moon1 = planet2.times(Mat4.rotation(4 / 5 * t, [0, 1, 0]))
+        .times(Mat4.translation([2, 0, 0]))
+        .times(Mat4.rotation(4 / 5 * t, [0, 1, 0]));
+      this.shapes.ball_4.draw(context, program_state, moon1, this.materials.moon_1.override(modifier));
 
       const planet3 = model_transform.times(Mat4.rotation(3 / 5 * t, [0, 1, 0]))
         .times(Mat4.translation([11, 0, 0]))
@@ -114,6 +117,7 @@ const Main_Scene =
       this.camera_teleporter.cameras.push(Mat4.inverse(sun.times(step_back)));
       this.camera_teleporter.cameras.push(Mat4.inverse(planet1.times(step_back)));
       this.camera_teleporter.cameras.push(Mat4.inverse(planet2.times(step_back)));
+      this.camera_teleporter.cameras.push(Mat4.inverse(moon1.times(step_back)));
       this.camera_teleporter.cameras.push(Mat4.inverse(planet3.times(step_back)));
       this.camera_teleporter.cameras.push(Mat4.inverse(moon2.times(step_back)));
       this.camera_teleporter.cameras.push(Mat4.inverse(planet4.times(step_back)));
@@ -220,7 +224,7 @@ const Gouraud_Shader = defs.Gouraud_Shader =
             result += attenuation * light_contribution;
           }
           return result;
-        }` ;
+        }`;
 
     }
     vertex_glsl_code() {
@@ -234,66 +238,51 @@ const Gouraud_Shader = defs.Gouraud_Shader =
           vec3 vertex_worldspace = (model_transform * vec4(position, 1.0)).xyz;
           color = vec4(shape_color.xyz * ambient, shape_color.w);
           color.xyz += gouraud_model_lights(normalize(N), vertex_worldspace);
-        }` ;
+        }`;
     }
     fragment_glsl_code() {
       return this.shared_glsl_code() + `
         void main() {
           gl_FragColor = color;
-        } ` ;
+        }`;
     }
   }
 
-
 const Black_Hole_Shader = defs.Black_Hole_Shader =
-  class Black_Hole_Shader extends Shader
-  // Simple "procedural" texture shader, with texture coordinates but without an input image.
-  {
+  class Black_Hole_Shader extends Shader {
     update_GPU(context, gpu_addresses, program_state, model_transform, material) {
-      // update_GPU(): Define how to synchronize our JavaScript's variables to the GPU's.  This is where the shader
-      // recieves ALL of its inputs.  Every value the GPU wants is divided into two categories:  Values that belong
-      // to individual objects being drawn (which we call "Material") and values belonging to the whole scene or
-      // program (which we call the "Program_State").  Send both a material and a program state to the shaders
-      // within this function, one data field at a time, to fully initialize the shader for a draw.
-
-      // TODO (#EC 1b):  Send the GPU the only matrix it will need for this shader:  The product of the projection,
-      // camera, and model matrices.  The former two are found in program_state; the latter is directly
-      // available here.  Finally, pass in the animation_time from program_state. You don't need to allow
-      // custom materials for this part so you don't need any values from the material object.
-      // For an example of how to send variables to the GPU, check out the simple shader "Funny_Shader".
-
-      // context.uniformMatrix4fv( gpu_addresses.projection_camera_model_transform,
+      const [P, C, M] = [program_state.projection_transform, program_state.camera_inverse, model_transform],
+        PCM = P.times(C).times(M);
+      context.uniformMatrix4fv(gpu_addresses.projection_camera_model_transform, false, Mat.flatten_2D_to_1D(PCM.transposed()));
+      context.uniform1f(gpu_addresses.animation_time, program_state.animation_time / 1000);
     }
-    shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
-    {
-      // TODO (#EC 1c):  For both shaders, declare a varying vec2 to pass a texture coordinate between
-      // your shaders.  Also make sure both shaders have an animation_time input (a uniform).
-      return `precision mediump float;
-
-      `;
+    shared_glsl_code() {
+      return `
+        precision mediump float;
+        uniform float animation_time;
+        varying vec2 f_tex_coord;
+        const float PI = 3.1415926535897932384626433832795;`;
     }
-    vertex_glsl_code()           // ********* VERTEX SHADER *********
-    {
-      // TODO (#EC 1d,e):  Create the final "gl_Position" value of each vertex based on a displacement
-      // function.  Also pass your texture coordinate to the next shader.  As inputs,
-      // you have the current vertex's stored position and texture coord, animation time,
-      // and the final product of the projection, camera, and model matrices.
+    vertex_glsl_code() {
       return this.shared_glsl_code() + `
+        attribute vec3 position;
+        attribute vec2 texture_coord;
+        uniform mat4 projection_camera_model_transform;
 
-        void main()
-        {
-
+        void main() {
+          vec3 newPosition = position * (1. + 0.1 * sin(mod(12. * PI * (texture_coord.y - animation_time / 2.), 2. * PI)));
+          gl_Position = projection_camera_model_transform * vec4(newPosition, 1.);
+          f_tex_coord = texture_coord;
         }`;
-    }
-    fragment_glsl_code()           // ********* FRAGMENT SHADER *********
-    {
-      // TODO (#EC 1f):  Using the input UV texture coordinates and animation time,
-      // calculate a color that makes moving waves as V increases.  Store
-      // the result in gl_FragColor.
-      return this.shared_glsl_code() + `
-        void main()
-        {
 
+    }
+    fragment_glsl_code() {
+      return this.shared_glsl_code() + `
+        void main() {
+          float v = f_tex_coord.y;
+          gl_FragColor = vec4(
+            min(1., max(0., 0.5 + sin(12. * PI * (v - animation_time / 2.)))),
+            min(1., max(0., 0.65 * sin(12. * PI * (v - animation_time / 2.)))), 0, 1);
         }`;
     }
   }
