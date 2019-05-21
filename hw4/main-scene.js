@@ -214,8 +214,8 @@ const Gouraud_Shader = defs.Gouraud_Shader =
             float specular = pow(max(dot(N, H), 0.), smoothness);
             float attenuation = 1. / (1. + light_attenuation_factors[i] * distance_to_light * distance_to_light);
 
-            vec3 light_contribution = shape_color.xyz * vec3(1., 1., 1.) * diffusivity * diffuse
-              + vec3(1., 1., 1.) * specularity * specular;
+            vec3 light_contribution = shape_color.xyz * light_colors[i].xyz * diffusivity * diffuse
+              + light_colors[i].xyz * specularity * specular;
 
             result += attenuation * light_contribution;
           }
