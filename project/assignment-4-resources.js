@@ -758,7 +758,7 @@ const Camera_Controls = defs.Camera_Controls =
     // scenes.
     constructor() {
       super();
-      this.r = 20;
+      this.r = 30;
       this.theta = 0;
       this.phi = Math.PI / 6;
       this.forward = 0;
@@ -771,6 +771,7 @@ const Camera_Controls = defs.Camera_Controls =
         in: false,
         out: false
       };
+      this.camera_lock = true;
       this.mouse_enabled_canvases = new Set();
       this.will_take_over_graphics_state = true;
     }
@@ -813,8 +814,16 @@ const Camera_Controls = defs.Camera_Controls =
       this.key_triggered_button("In", ["z"], () => this.keys.in = true, undefined, () => this.keys.in = false);
       this.key_triggered_button("Out", ["x"], () => this.keys.out = true, undefined, () => this.keys.out = false);
       this.new_line();
-      this.key_triggered_button("Look Forward", ["c"], () => { this.theta = 0, this.phi = Math.PI / 6; });
-      this.key_triggered_button("Look Backward", ["v"], () => { this.theta = Math.PI, this.phi = Math.PI / 6; });
+      this.key_triggered_button("Look Forward", ["c"], () => { this.theta = (this.camera_lock ? 0 : this.forward); this.phi = Math.PI / 6; });
+      this.key_triggered_button("Look Backward", ["v"], () => { this.theta = (this.camera_lock ? 0 : this.forward) + Math.PI; this.phi = Math.PI / 6; });
+      this.key_triggered_button("Toggle Camera Lock", ["b"], () => {
+        if (this.camera_lock) {
+          this.theta = this.theta + this.forward;
+        } else {
+          this.theta = this.theta - this.forward;
+        }
+        this.camera_lock = !this.camera_lock;
+      });
     }
     change_location(dt) {
       const limit = (val, min, max) => val < min ? min : (val > max ? max : val);
@@ -846,7 +855,7 @@ const Camera_Controls = defs.Camera_Controls =
       this.r = limit(this.r, r_min, r_max);
     }
     set_camera() {
-      this.pos = Mat4.rotation(this.forward + this.theta, [0, 1, 0])
+      this.pos = Mat4.rotation((this.camera_lock ? this.forward : 0) + this.theta, [0, 1, 0])
         .times(Mat4.rotation(this.phi, [-1, 0, 0]))
         .times(Vec.of(0, 0, this.r, 1))
         .to3();

@@ -24,8 +24,8 @@ const Main_Scene =
 
       //Buoy defs
       this.buoys = [];
-      for (let i = 0; i < 10; i++) {
-        this.buoys.push({ x: -63 + i * 20, y: 30 - i * 20, hit: false });
+      for (let i = 0; i < 8; i++) {
+        this.buoys.push({ x: -63 + i * 20, y: 35 - i * 4, hit: false });
       }
       this.wake = [];
       this.helpText = `
@@ -111,9 +111,9 @@ const Main_Scene =
     height(x, y) {
       const wave = function (x, y, t) {
         const x_scale = 0.5;
-        const y_scale = 0.03;
+        const y_scale = 0.025;
         const t_mod = t % 20;
-        let v = y_scale * (y - 100) + t_mod / 4;
+        let v = y_scale * (y - 100 + 2 * t_mod);
         if (v > Math.PI / 2)
           v = Math.PI / 2;
         else if (v < -Math.PI / 2)
@@ -124,7 +124,7 @@ const Main_Scene =
         else if (t_mod > 17)
           fadeInAndOut = (20 - t_mod) / 3;
         const amplitude = (5 + 30 * Math.cos(v) * Math.cos(v)) * fadeInAndOut;
-        const u = x_scale * x + y_scale * y - 4 * t_mod + 24;
+        const u = x_scale * (x + 48 - 8 * t_mod);
         let blend = 1 - u / 4;
         if (blend < 0)
           blend = 0;
@@ -155,8 +155,8 @@ const Main_Scene =
       this.t = program_state.animation_time / 1000;
       const dt = program_state.animation_delta_time / 1000;
 
-      const torque_multiplier = 2;
-      const wave_multiplier = 3;
+      const torque_multiplier = 3;
+      const wave_multiplier = 4;
       const torque_drag = 0.5;
       const pitch_drag = 2;
       const velocity_multiplier = 10;
